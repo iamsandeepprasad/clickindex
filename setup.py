@@ -14,7 +14,9 @@ setup(
     'llama-index-vector-stores-faiss==0.4.0',
     'faiss-cpu==1.11.0',
     'langchain_openai==0.3.16',
-    'faiss-cpu==1.11.0']
+    'langchain_huggingface==0.2.0',
+    'faiss-cpu==1.11.0',
+    'langchain-google-genai==2.1.4']
 
 
 

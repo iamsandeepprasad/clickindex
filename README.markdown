@@ -20,37 +20,35 @@ from langchain_openai import ChatOpenAI
 indexer = DataIndexing()
 
 # Configure parameters
-directory_path = "./data"
+input_data_path = "Input data path"
 embedding_method = "huggingface"
 chunk_strategy = "hierarchical"
 parent_chunk_size = 1024
 child_chunk_size = 512
 parsing_flag = True
+fiass_index_path="Vector store path"
 llm = ChatOpenAI()
 
 # Start indexing
 index = indexer.start_data_indexing(
-    directory_path=directory_path,
+    input_data_path=directory_path,
     embedding_method=embedding_method,
     chunk_strategy=chunk_strategy,
     parent_chunk_size=parent_chunk_size,
     child_chunk_size=child_chunk_size,
     parsing_flag=parsing_flag,
+    fiass_index_path=fiass_index_path,
     llm=llm
 )
 
-# Query the index
-query_engine = index.as_query_engine()
-response = query_engine.query("What is the main topic of the documents?")
-print(response)
-```
 
 ## Features
 
 - Supports multiple embedding methods: OpenAI, HuggingFace, Gemini.
 - Implements fixed, semantic, and hierarchical chunking strategies.
 - Uses FAISS with HNSW for efficient vector storage and search.
-- Optional LLM-based parsing for extracting content in Markdown format.
+- LLM-based parsing for extracting content from tabular and image data in documents.
+- Uses FAISS with HNSW for efficient vector storage and search
 
 ## Requirements
 
@@ -67,4 +65,4 @@ Contributions are welcome! Please open an issue or submit a pull request on GitH
 
 ## Contact
 
-For questions, contact [your.email@example.com](mailto:your.email@example.com).
+For questions, contact [iamprasadsandeep.email@example.com](mailto:iamprasadsandeep.email@example.com).
