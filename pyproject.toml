@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clickindex"
+version = "0.1.0"
+description = "A Python package for indexing documents with LlamaIndex and FAISS using various chunking strategies."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Sandeep Prasad", email = "iamprasadsandeep@gmail.com"}
+]
+keywords = ["indexing", "llamaindex", "faiss", "vector-store", "chunking","langchain"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pandas==2.2.3",
+    "langchain==0.3.25",
+    "langchain-community==0.3.23",
+    "langchain_experimental==0.3.4",
+    "llama-index==0.12.34",
+    "llama-index-embeddings-gemini==0.3.2",
+    "llama-index-embeddings-huggingface==0.5.3",
+    "llama-index-vector-stores-faiss==0.4.0",
+    "faiss-cpu==1.11.0"
+
+]
+
+[project.urls]
+Homepage = "https://github.com/iamsandeepprasad/clickindex"
+Repository = "https://github.com/iamsandeepprasad/clickindex"
+Documentation = "https://github.com/iamsandeepprasad/clickindex#readme"
