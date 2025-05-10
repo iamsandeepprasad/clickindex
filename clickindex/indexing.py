@@ -1,20 +1,36 @@
 import os
 import warnings
 from dotenv import load_dotenv
+import uuid
 import faiss
-from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, StorageContext
-from llama_index.vector_stores.faiss import FaissVectorStore
-from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+import numpy as np
+from llama_index.core import SimpleDirectoryReader
 from llama_index.embeddings.gemini import GeminiEmbedding
+from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core.node_parser import HierarchicalNodeParser, SentenceSplitter, SemanticSplitterNodeParser
 from llama_index.core.schema import Document
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+
 from langchain.chains import LLMChain
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI,OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.prompts import PromptTemplate
+from langchain_community.vectorstores import FAISS
+from langchain_community.docstore.in_memory import InMemoryDocstore
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+
+
+
+
+
+
+
 
 class DataIndexing:
-    """A class for indexing documents using LlamaIndex and FAISS with various chunking strategies."""
+    """A class designed for indexing documents with LlamaIndex, Langchain, and FAISS, 
+    utilizing diverse chunking strategies and advanced parsing logic to interpret tables and text 
+    within the documents."""
     
     def __init__(self):
         """Initialize the DataIndexing class by loading environment variables."""
@@ -36,12 +52,13 @@ class DataIndexing:
         """
         embedding_method = embedding_method.lower()
         if embedding_method == "openai":
-            embedding = OpenAIEmbedding()
+            embedding = OpenAIEmbeddings()
         elif embedding_method == "gemini":
-            embedding = GeminiEmbedding()
+            model_name = model_name or "models/gemini-embedding-exp-03-07"
+            embedding = GoogleGenerativeAIEmbeddings(model=model_name)
         elif embedding_method == "huggingface":
             model_name = model_name or "sentence-transformers/all-MiniLM-L6-v2"
-            embedding = HuggingFaceEmbedding(model_name=model_name)
+            embedding = HuggingFaceEmbeddings(model_name=model_name)
         else:
             raise ValueError(
                 f"Unsupported embedding method: {embedding_method}. "
@@ -49,19 +66,19 @@ class DataIndexing:
             )
         return embedding
     
-    def load_data(self, directory_path):
+    def load_data(self, input_data_path):
         """
         Load documents from the specified directory.
         
         Args:
-            directory_path (str): Path to the directory containing documents.
+            input_data_path (str): Path to the directory containing documents.
         
         Returns:
             List[Document]: List of loaded documents.
         """
-        reader = SimpleDirectoryReader(input_dir=directory_path)
+        reader = SimpleDirectoryReader(input_dir=input_data_path)
         documents = reader.load_data()
-        print(f"Loaded {len(documents)} documents from {directory_path}")
+        print(f"Loaded {len(documents)} documents from {input_data_path}")
         return documents
     
     def text_parser(self, llm, documents, parser_prompt=None):
@@ -160,13 +177,14 @@ class DataIndexing:
             response_arr.append(response_document)
         return response_arr
     
-    def create_faiss_hnsw_index(self, nodes, embedding_method, ef_construction=200, ef_search=40, m=32, model_name=None):
+    def create_faiss_hnsw_index(self, nodes, embedding_method,fiass_index_output_path, ef_construction=200, ef_search=40, m=32, model_name=None):
         """
-        Create a FAISS vector index with HNSW from nodes.
+        Create a FAISS vector index with HNSW (Hierarchical Navigable Small World).
         
         Args:
             nodes: List of nodes to index.
             embedding_method (str): The embedding method to use.
+            fiass_index_output_path (str): The output path where the FAISS vector store will be saved.
             ef_construction (int): HNSW parameter for index construction.
             ef_search (int): HNSW parameter for search efficiency.
             m (int): HNSW parameter for number of bidirectional links.
@@ -175,32 +193,54 @@ class DataIndexing:
         Returns:
             VectorStoreIndex: FAISS HNSW vector index.
         """
-        embedding = self.get_embedding_obj(embedding_method, model_name)
+        #getting embedding model object
+        embedding_model = self.get_embedding_obj(embedding_method, model_name)
         sample_text = "This is a sample text to determine embedding dimension."
-        text_embedding = embedding.get_text_embedding(sample_text)
-        d = len(text_embedding)  # Dimension of the embedding
+        text_embedding = embedding_model.embed_documents(sample_text)
+        d = len(text_embedding[0])  # Dimension of the embedding
 
         # Initialize FAISS with HNSW index
-        faiss_index = faiss.IndexHNSWFlat(d, m)
-        faiss_index.hnsw.efConstruction = ef_construction
-        faiss_index.hnsw.efSearch = ef_search
+        index = faiss.IndexHNSWFlat(d, m)
+        index.hnsw.efConstruction = ef_construction
+        index.hnsw.efSearch = ef_search
 
-        # Initialize FAISS vector store
-        vector_store = FaissVectorStore(faiss_index=faiss_index)
-        storage_context = StorageContext.from_defaults(vector_store=vector_store)
-        index = VectorStoreIndex(
-            nodes,
-            embed_model=embedding,
-            storage_context=storage_context
+        # Convert LlamaIndex nodes to LangChain Documents
+        documents = [
+            Document(
+                page_content=node.text,
+                metadata={**node.metadata, "id": str(uuid.uuid4())}  # Add unique ID to metadata
+            )
+            for node in nodes
+        ]
+        embeddings_np = np.array(text_embedding, dtype='float32')
+        index.add(embeddings_np)
+
+        # Create index_to_docstore_id mapping
+        index_to_docstore_id = {i: doc.metadata["id"] for i, doc in enumerate(documents)}
+
+        # Initialize in-memory docstore
+        docstore = InMemoryDocstore({doc.metadata["id"]: doc for doc in documents})
+
+        # Create LangChain FAISS vector store
+        vector_store = FAISS(
+            embedding_function=embedding_model,
+            index=index,
+            docstore=docstore,
+            index_to_docstore_id=index_to_docstore_id
         )
-        print("FAISS HNSW vector index created successfully")
+        #saving the faiss index locally
+        faiss.write_index(index, f"{fiass_index_output_path}"+"/hnsw_index.faiss")
+        vector_store.save_local(f"{fiass_index_output_path}"+"/faiss_vector_store")
+        print(f"FAISS HNSW vector index created successfully at {fiass_index_output_path} ")
         return index
 
     def start_data_indexing(
         self,
-        directory_path,
+        fiass_index_output_path,
         embedding_method,
         chunk_strategy,
+        input_data_path,
+        database ="faiss",
         model_name=None,
         chunk_size=None,
         chunk_overlap=None,
@@ -210,15 +250,17 @@ class DataIndexing:
         child_chunk_size=None,
         parsing_flag=False,
         parser_prompt=None,
-        llm=None
+        llm=None,
+        
     ):
         """
         Start the data indexing process with specified chunking strategy.
         
         Args:
-            directory_path (str): Path to the directory containing documents.
+            input_data_path (str): Path to the directory containing documents.
             embedding_method (str): The embedding method to use.
             chunk_strategy (str): Chunking strategy ('fixed', 'semantic', 'hierarchical').
+            fiass_index_output_path (str): The output path where the FAISS vector store will be saved.
             model_name (str, optional): Specific model name for the embedding method.
             chunk_size (int, optional): Size of chunks for fixed chunking.
             chunk_overlap (int, optional): Overlap between chunks for fixed chunking.
@@ -229,6 +271,7 @@ class DataIndexing:
             parsing_flag (bool): Whether to parse documents using LLM.
             parser_prompt (str, optional): Custom prompt for parsing.
             llm: Language model for parsing (required if parsing_flag is True).
+            database: vector database, currently supporting only FAISS.
         
         Returns:
             VectorStoreIndex: Indexed data with specified chunking strategy.
@@ -239,7 +282,7 @@ class DataIndexing:
         # Get embedding object
         embedding = self.get_embedding_obj(embedding_method, model_name)
         # Load documents
-        loaded_documents = self.load_data(directory_path)
+        loaded_documents = self.load_data(input_data_path)
         if parsing_flag:
             if llm is None:
                 raise ValueError("To parse the document for text, table, and images, please provide a Large Language Model")
@@ -249,7 +292,6 @@ class DataIndexing:
         else:
             documents = loaded_documents
 
-        print("Started")
         if chunk_strategy == "fixed":
             print("Starting Fixed Chunking")
             if chunk_size is None:
@@ -263,11 +305,20 @@ class DataIndexing:
                 raise ValueError("For semantic chunking strategy, buffer size cannot be None")
             if breakpoint_threshold is None:
                 raise ValueError("For semantic chunking strategy, breakpoint threshold cannot be None")
-            splitter = SemanticSplitterNodeParser(
-                buffer_size=buffer_size,
-                breakpoint_percentile_threshold=breakpoint_threshold,
-                embed_model=embedding
-            )
+            else: 
+                embedding_sc=""
+                if embedding_method =="openai":
+                    embedding_sc = OpenAIEmbedding()
+                elif embedding_method =="huggingface":
+                    model_name = model_name or "sentence-transformers/all-MiniLM-L6-v2"
+                    embedding_sc = HuggingFaceEmbedding(model_name=model_name)
+                elif embedding_method == "gemini":
+                    embedding_sc = GeminiEmbedding()
+                splitter = SemanticSplitterNodeParser(
+                    buffer_size=buffer_size,
+                    breakpoint_percentile_threshold=breakpoint_threshold,
+                    embed_model=embedding_sc
+                )
         elif chunk_strategy == "hierarchical":
             print("Starting Hierarchical Chunking")
             if parent_chunk_size is None:
@@ -284,11 +335,13 @@ class DataIndexing:
 
         # Split documents into chunks
         nodes = splitter.get_nodes_from_documents(documents)
+        fiass_index_output_path=os.path.dirname(fiass_index_output_path)
         print(f"Created {len(nodes)} nodes")
-        index = self.create_faiss_hnsw_index(
-            nodes=nodes,
-            embedding_method=embedding_method,
-            model_name=model_name
-        )
-        index.storage_context.persist()
-        return index
+        if database == "faiss":
+            index = self.create_faiss_hnsw_index(
+                nodes=nodes,
+                embedding_method=embedding_method,
+                model_name=model_name,
+                fiass_index_output_path=fiass_index_output_path
+            )
+            return index

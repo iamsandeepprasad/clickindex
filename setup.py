@@ -13,7 +13,8 @@ setup(
     'llama-index-embeddings-huggingface==0.5.3',
     'llama-index-vector-stores-faiss==0.4.0',
     'faiss-cpu==1.11.0',
-    'langchain_openai==0.3.16']
+    'langchain_openai==0.3.16',
+    'faiss-cpu==1.11.0']
 
 
 
