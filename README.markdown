@@ -31,7 +31,7 @@ llm = ChatOpenAI()
 
 # Start indexing
 index = indexer.start_data_indexing(
-    input_data_path=directory_path,
+    input_data_path=input_data_path,
     embedding_method=embedding_method,
     chunk_strategy=chunk_strategy,
     parent_chunk_size=parent_chunk_size,
