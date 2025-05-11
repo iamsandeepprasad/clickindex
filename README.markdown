@@ -20,26 +20,31 @@ from langchain_openai import ChatOpenAI
 indexer = DataIndexing()
 
 # Configure parameters
-input_data_path = "Input data path"
+input_data_path = "Your Input Path"
 embedding_method = "huggingface"
 chunk_strategy = "hierarchical"
+buffer_size =1
+breakpoint_threshold=95
 parent_chunk_size = 1024
 child_chunk_size = 512
-parsing_flag = True
-fiass_index_path="Vector store path"
-llm = ChatOpenAI()
-
-# Start indexing
+parsing_flag = False
+database="faiss"
+fiass_index_path = "vectore store path"
+    # Start indexing
+indexer=DataIndexing()
 index = indexer.start_data_indexing(
-    input_data_path=input_data_path,
-    embedding_method=embedding_method,
-    chunk_strategy=chunk_strategy,
-    parent_chunk_size=parent_chunk_size,
-    child_chunk_size=child_chunk_size,
-    parsing_flag=parsing_flag,
-    fiass_index_path=fiass_index_path,
-    llm=llm
-)
+        fiass_index_output_path=fiass_index_path,
+        input_data_path=input_data_path,
+        buffer_size=buffer_size,
+        breakpoint_threshold=breakpoint_threshold,
+        embedding_method=embedding_method,
+        chunk_strategy=chunk_strategy,
+        parent_chunk_size=parent_chunk_size,
+        child_chunk_size=child_chunk_size,
+        parsing_flag=parsing_flag,
+        database="faiss",
+        )
+    
 
 
 ## Features
