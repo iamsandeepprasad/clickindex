@@ -7,8 +7,7 @@ A Python package for indexing documents using LlamaIndex and FAISS with various 
 Install the package via pip:
 
 ```bash
-pip install clickindex
-```
+pip install -i https://test.pypi.org/simple/ clickindex```
 
 ## Usage
 
